@@ -334,7 +334,7 @@ public class SwiftSpeechToTextPlugin: NSObject, FlutterPlugin {
             os_log("Error stopping listen: %{PUBLIC}@", log: pluginLog, type: .error, error.localizedDescription)
         }
         do {
-            try self.audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            try self.audioSession.setActive(false)
         }
         catch {
             os_log("Error deactivation: %{PUBLIC}@", log: pluginLog, type: .info, error.localizedDescription)
@@ -380,7 +380,7 @@ public class SwiftSpeechToTextPlugin: NSObject, FlutterPlugin {
                 try self.audioSession.setPreferredSampleRate(Double(sampleRate))
             }
             try self.audioSession.setMode(AVAudioSession.Mode.default)
-            try self.audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            try self.audioSession.setActive(true)
             if let sound = listeningSound {
                 self.onPlayEnd = {()->Void in
                     if ( !self.failedListen ) {
@@ -442,8 +442,8 @@ public class SwiftSpeechToTextPlugin: NSObject, FlutterPlugin {
         catch {
             failedListen = true
             os_log("Error starting listen: %{PUBLIC}@", log: pluginLog, type: .error, error.localizedDescription)
-            self.invokeFlutter( SwiftSpeechToTextCallbackMethods.notifyStatus, arguments: SpeechToTextStatus.notListening.rawValue )
             stopCurrentListen()
+            self.invokeFlutter( SwiftSpeechToTextCallbackMethods.notifyStatus, arguments: SpeechToTextStatus.notListening.rawValue )
             sendBoolResult( false, result );
             // ensure the not listening signal is sent in the error case
             let speechError = SpeechRecognitionError(errorMsg: "error_listen_failed", permanent: true )
@@ -580,6 +580,7 @@ extension SwiftSpeechToTextPlugin : SFSpeechRecognitionTaskDelegate {
     public func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
         reportError(source: "FinishSuccessfully", error: task.error)
         os_log("FinishSuccessfully", log: pluginLog, type: .debug )
+        stopCurrentListen( )
         if ( !successfully ) {
             invokeFlutter( SwiftSpeechToTextCallbackMethods.notifyStatus, arguments: SpeechToTextStatus.doneNoResult.rawValue )
             if let err = task.error as NSError? {
@@ -601,17 +602,6 @@ extension SwiftSpeechToTextPlugin : SFSpeechRecognitionTaskDelegate {
                 } catch {
                     os_log("Could not encode JSON", log: pluginLog, type: .error)
                 }
-            }
-        }
-        if !stopping {
-            if let sound = successfully ? successSound : cancelSound {
-                onPlayEnd = {() -> Void in
-                    self.stopCurrentListen( )
-                }
-                sound.play()
-            }
-            else {
-                stopCurrentListen( )
             }
         }
     }
